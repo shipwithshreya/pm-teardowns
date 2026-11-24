@@ -1,2 +1,5 @@
 .vercel
 .playwright-mcp
+
+.vercel
+.env*
