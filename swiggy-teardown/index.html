@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Swiggy Product Teardown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A PM case study on Swiggy's consumer app: why fulfillment reliability is the top opportunity, what I'd build, and how I'd measure it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a long-form PM case study that follows one reasoning chain:
+   Problem → Insight → Opportunity → Priority → Solution → Measurement.
+   The hero states the thesis and the whole argument in six lines; each chapter then answers one question.
+   Chapters are a two-column grid: number + label + the question on the left, the argument on the right. */
+:root{
+  --bg:#FCFBFA; --surface:#F3F0EC; --ink:#1B1815; --muted:#6C635A; --line:#E4DED7;
+  --accent:#D45A14; --accent-soft:#FBE7D9; --accent-ink:#9A3E0A;
+  --ok:#2C7A4C; --ok-soft:#E1F1E7; --warn:#9A620B; --warn-soft:#FAEFD9;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --step--1:.8125rem; --step-0:1.0625rem; --step-1:1.25rem; --step-2:1.55rem; --step-3:clamp(1.75rem,3vw,2.35rem);
+  --step-4:clamp(2.1rem,4.4vw,3.3rem); --step-5:clamp(2.3rem,4.8vw,3.8rem);
+}
+/* Light editorial page by default (portfolio piece). Dark palette kept as an explicit opt-in only. */
+:root{color-scheme:light}
+:root[data-theme="dark"]{
+  --bg:#141210; --surface:#1E1B18; --ink:#EEE9E3; --muted:#A39A90; --line:#302B27;
+  --accent:#F0874A; --accent-soft:#3A2416; --accent-ink:#F6A877;
+  --ok:#62BE88; --ok-soft:#183126; --warn:#E3AA52; --warn-soft:#352915; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:var(--step-0);line-height:1.6;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1140px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (min-width:720px){.wrap{padding-left:max(40px,env(safe-area-inset-left,0px));padding-right:max(40px,env(safe-area-inset-right,0px))}}
+h1,h2,h3,h4{font-family:var(--display);font-weight:650;line-height:1.1;letter-spacing:-.02em;text-wrap:balance;margin:0}
+p{margin:0;max-width:64ch}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+.label{font-family:var(--mono);font-size:var(--step--1);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:1.25rem}
+
+/* Status tags: the evidence system. Observed / Hypothesis / Recommendation, plus one loud tag for the #1 priority. */
+.tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;padding:.22em .65em;border:1px solid var(--line);border-radius:999px;color:var(--muted);white-space:nowrap;line-height:1.4}
+.tag.obs{border-color:var(--muted);color:var(--ink)}
+.tag.hyp{border:1px dashed var(--accent);color:var(--accent-ink)}
+.tag.rec{border-color:transparent;background:var(--accent-soft);color:var(--accent-ink)}
+.tag.pri{border-color:var(--accent);background:var(--accent);color:var(--bg);font-weight:500}
+.tags{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+
+/* Spine */
+.spine{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.spine .wrap{display:flex;align-items:center;gap:1.5rem;height:56px}
+.spine .brand{font-family:var(--display);font-weight:700;font-size:1rem;white-space:nowrap;text-decoration:none}
+.spine ol{list-style:none;margin:0 0 0 auto;padding:0;display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none}
+.spine ol::-webkit-scrollbar{display:none}
+.spine a.s{display:block;text-decoration:none;font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;padding:.4rem .6rem;border-radius:6px;color:var(--muted);white-space:nowrap}
+.spine a.s:hover{color:var(--ink)}
+.spine a.s.on{color:var(--accent-ink);background:var(--accent-soft)}
+.spine li+li a.s::before{content:"→ ";opacity:.45}
+@media (max-width:760px){.spine .brand{display:none}.spine ol{margin-left:0}}
+
+/* Hero: thesis first, then the argument in six lines */
+.hero{padding-block:clamp(2.25rem,5vw,3.75rem) clamp(2.5rem,5vw,4rem);border-bottom:1px solid var(--line)}
+.kicker{display:flex;flex-wrap:wrap;gap:.6rem 1.2rem;align-items:center;margin-bottom:clamp(1.75rem,4vw,2.75rem)}
+.kicker .name{font-family:var(--display);font-size:var(--step-1);font-weight:700;letter-spacing:-.01em}
+.kicker .name span{color:var(--accent)}
+.hero .label.th{display:block;color:var(--accent-ink);margin-bottom:1rem}
+.hero h1{font-size:var(--step-5);font-weight:700;letter-spacing:-.035em;line-height:1.04;max-width:22ch}
+.hero h1 span{color:var(--accent)}
+.hero .question{margin-top:1.25rem;font-size:var(--step-1);line-height:1.45;color:var(--muted);max-width:52ch}
+.hero .question b{color:var(--ink);font-weight:500}
+.meta{margin-top:1.5rem;display:grid;grid-template-columns:1fr;gap:.75rem 2rem;font-size:.95rem}
+@media (min-width:760px){.meta{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.meta div{display:flex;flex-direction:column;gap:.2rem}
+.meta dt{font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-size:.72rem}
+.meta dd{margin:0}
+
+.glance{margin-top:clamp(2rem,4vw,2.75rem)}
+.glance-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.75rem 1.5rem;margin-bottom:1rem}
+.glance ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr;border-top:1px solid var(--ink)}
+@media (min-width:640px){.glance ol{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:980px){.glance ol{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.glance li{border-bottom:1px solid var(--line)}
+@media (min-width:640px) and (max-width:979px){.glance li:nth-child(2n){border-left:1px solid var(--line)}}
+@media (min-width:980px){.glance li:not(:nth-child(3n+1)){border-left:1px solid var(--line)}}
+.glance a{display:flex;flex-direction:column;gap:.5rem;height:100%;padding:1.2rem 1.25rem 1.4rem;text-decoration:none}
+.glance a:hover .g-t{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:4px}
+.glance .g-k{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.glance .g-k b{color:var(--accent);font-weight:500;margin-right:.4rem}
+.glance .g-t{font-family:var(--display);font-size:1.12rem;font-weight:500;line-height:1.3;letter-spacing:-.01em}
+.glance li.key a{background:var(--accent-soft)}
+.glance li.key .g-k{color:var(--accent-ink)}
+.legend{margin-top:1.25rem;display:flex;flex-wrap:wrap;gap:.6rem 1.5rem;font-size:.88rem;color:var(--muted)}
+.legend span.it{display:inline-flex;gap:.5rem;align-items:center}
+
+/* Chapters */
+.chapter{padding-block:clamp(3.25rem,7vw,5.5rem);border-bottom:1px solid var(--line)}
+.chapter>.wrap{display:grid;grid-template-columns:1fr;gap:1.5rem 3rem}
+@media (min-width:960px){.chapter>.wrap{grid-template-columns:180px minmax(0,1fr)}}
+.ch-head{display:flex;flex-direction:row;align-items:center;gap:1rem}
+@media (min-width:960px){.ch-head{flex-direction:column;align-items:flex-start;gap:.75rem;position:sticky;top:96px;align-self:start}}
+.ch-num{font-family:var(--display);font-size:clamp(3rem,6vw,4.75rem);font-weight:300;line-height:.85;color:var(--accent);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.ch-meta{display:flex;flex-direction:column;gap:.3rem}
+.ch-q{font-family:var(--display);font-size:1rem;font-weight:500;line-height:1.3;color:var(--muted);max-width:16ch}
+@media (max-width:959px){.ch-q{max-width:none}}
+.ch-body{min-width:0;display:flex;flex-direction:column;gap:2.25rem}
+.ch-title{font-size:var(--step-4);max-width:20ch}
+.ch-title em{font-style:normal;color:var(--accent)}
+.ch-title .soft{color:var(--muted);font-weight:450}
+.lede{font-size:var(--step-1);line-height:1.5;max-width:56ch}
+.big{font-family:var(--display);font-size:var(--step-3);font-weight:600;line-height:1.15;letter-spacing:-.02em;max-width:24ch;text-wrap:balance}
+.big em{font-style:normal;color:var(--accent)}
+.sub-h{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;padding-top:.5rem}
+.second .hmw{background:transparent;border-left:3px solid var(--accent);border-radius:0;padding:.25rem 0 .25rem 1.1rem}
+.second .hmw p{font-size:1.08rem}
+.sub-h h3{font-size:var(--step-2)}
+.note{display:flex;gap:.75rem;align-items:flex-start;font-size:.875rem;color:var(--muted);max-width:72ch}
+.note::before{content:"i";flex:none;display:grid;place-items:center;width:1.25rem;height:1.25rem;border:1px solid var(--muted);border-radius:50%;font-family:var(--mono);font-size:.7rem;margin-top:.1rem}
+
+/* Insight / question / why-it-matters rhythm */
+.trio{display:grid;grid-template-columns:1fr;gap:1.5rem}
+@media (min-width:760px){.trio{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.kv{display:flex;flex-direction:column;gap:1.25rem}
+.kv>div,.trio>div{display:flex;flex-direction:column;gap:.4rem;min-width:0}
+.kv h4,.trio h4{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;font-family:var(--mono);font-size:.74rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kv p,.trio p,.kv li,.trio li{font-size:.98rem}
+.kv ul,.trio ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:.2rem}
+.hmw{background:var(--accent-soft);border-radius:10px;padding:1.1rem 1.35rem;display:flex;flex-direction:column;gap:.35rem}
+.hmw .label{color:var(--accent-ink)}
+.hmw p{font-family:var(--display);font-size:1.15rem;font-weight:600;line-height:1.3;max-width:52ch}
+
+/* 01 Context */
+.surfaces{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));border-top:1px solid var(--ink)}
+.surface{padding:1rem 1.25rem 1.25rem 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:.3rem}
+@media (min-width:720px){.surface+.surface{padding-left:1.25rem;border-left:1px solid var(--line)}}
+.surface h3{font-size:var(--step-1);font-weight:600}
+.surface .mode{font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink)}
+.surface p{font-size:.92rem;color:var(--muted)}
+.arch{display:grid;grid-template-columns:1fr;gap:1rem}
+@media (min-width:860px){.arch{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.persona{background:var(--surface);border-radius:12px;padding:1.35rem;display:flex;flex-direction:column;gap:.75rem}
+.persona h3{font-size:var(--step-1)}
+.persona .job{font-size:.95rem;color:var(--muted)}
+.persona .needs{font-size:.92rem}
+.persona .needs b{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-right:.35rem}
+.persona blockquote{margin:0;padding-top:.75rem;border-top:1px solid var(--line);font-family:var(--display);font-size:1.02rem;line-height:1.35;color:var(--accent-ink)}
+.scope{display:grid;grid-template-columns:1fr;gap:1rem 2rem;font-size:.95rem}
+@media (min-width:720px){.scope{grid-template-columns:1fr 1fr}}
+.scope h4{font-family:var(--mono);font-size:.74rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.scope ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:.25rem}
+.scope .out li{color:var(--muted)}
+
+/* 02 Problem: the lead problem */
+.lead{display:flex;flex-direction:column;gap:2rem;padding:clamp(1.25rem,3vw,2.25rem);background:var(--surface);border-radius:16px}
+.neq{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1.1rem;font-family:var(--display);font-size:var(--step-3);font-weight:650;letter-spacing:-.02em;line-height:1.1}
+.neq .sym{color:var(--accent);font-weight:400}
+.timeline{overflow-x:auto}
+.timeline ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));min-width:720px}
+.timeline li{position:relative;padding:2rem 1rem 0 0;display:flex;flex-direction:column;gap:.25rem}
+.timeline li::before{content:"";position:absolute;top:.55rem;left:0;right:0;height:2px;background:var(--line)}
+.timeline li::after{content:"";position:absolute;top:.2rem;left:0;width:.8rem;height:.8rem;border-radius:50%;background:var(--surface);border:2px solid var(--muted)}
+.timeline li.bad::after{border-color:var(--accent);background:var(--accent)}
+.timeline li.bad::before{background:var(--accent)}
+.timeline li.commit::after{background:var(--ink);border-color:var(--ink)}
+.timeline b{font-size:.95rem}
+.timeline span{font-size:.88rem;color:var(--muted)}
+.ledger{display:grid;grid-template-columns:1fr;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+@media (min-width:720px){.ledger{grid-template-columns:1fr 1.7fr}}
+.ledger>div{padding:1.25rem 1.4rem;display:flex;flex-direction:column;gap:.75rem}
+.ledger .restored{border-bottom:1px solid var(--line)}
+@media (min-width:720px){.ledger .restored{border-bottom:0;border-right:1px solid var(--line)}}
+.ledger h4{font-family:var(--mono);font-size:.74rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ledger ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:1fr;gap:.45rem 1.5rem}
+@media (min-width:560px){.ledger .lost ul{grid-template-columns:1fr 1fr}}
+.ledger li{display:flex;gap:.6rem;align-items:baseline;font-size:.98rem}
+.ledger li span{color:var(--muted);font-size:.9rem}
+.ledger .mark{flex:none;font-family:var(--mono);font-size:.8rem;width:1rem}
+.ledger .restored .mark{color:var(--ok)}
+.ledger .lost .mark{color:var(--accent)}
+
+/* 02 Problem: secondary problems */
+.second{display:grid;grid-template-columns:1fr;gap:1.75rem;padding-top:1.75rem;border-top:1px solid var(--line)}
+@media (min-width:860px){.second{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);align-items:start}}
+.second .s-head{grid-column:1/-1;display:flex;flex-direction:column;gap:.75rem}
+.second h4.t{font-size:var(--step-2);max-width:28ch}
+.figure{margin:0;display:flex;flex-direction:column;gap:.6rem}
+.figure figcaption{font-size:.85rem;color:var(--muted)}
+.ladder{display:flex;flex-direction:column;gap:.9rem;padding:1.25rem;border:1px solid var(--line);border-radius:12px}
+.ladder .who{font-size:.88rem;font-weight:500}
+.ladder .who small{font-weight:400;color:var(--muted);margin-left:.35rem}
+.bar{display:flex;height:28px;border-radius:5px;overflow:hidden;gap:2px;margin-top:.35rem}
+.seg{display:flex;align-items:center;padding:0 .6rem;font-family:var(--mono);font-size:.7rem;white-space:nowrap;overflow:hidden}
+.seg.food{background:var(--ink);color:var(--bg)}
+.seg.f1,.key-sw.f1{background:var(--accent)}
+.seg.f2,.key-sw.f2{background:color-mix(in srgb,var(--accent) 65%,var(--bg))}
+.seg.f3,.key-sw.f3{background:color-mix(in srgb,var(--accent) 40%,var(--bg))}
+.seg.f4,.key-sw.f4{background:color-mix(in srgb,var(--accent) 22%,var(--bg))}
+.keys{display:flex;flex-wrap:wrap;gap:.35rem 1rem;font-size:.8rem;color:var(--muted)}
+.keys span{display:inline-flex;align-items:center;gap:.35rem}
+.key-sw{width:.7rem;height:.7rem;border-radius:2px;display:inline-block}
+.gapnote{font-family:var(--display);font-size:1rem;color:var(--accent-ink)}
+.spec{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.spec>div{padding:1.1rem 1.15rem 1.25rem;display:flex;flex-direction:column;gap:.6rem}
+.spec .often{background:var(--surface)}
+.spec .k{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.spec ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.spec li{display:flex;align-items:center;gap:.55rem;font-family:var(--display);font-size:1.05rem;font-weight:600}
+.spec li::before{content:"";width:.7rem;height:.7rem;border-radius:50%;background:var(--ink)}
+.spec .occ li::before{background:transparent;border:2px solid var(--ink)}
+.spec .foot{grid-column:1/-1;padding:.6rem 1.15rem;border-top:1px solid var(--line);font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+/* 03 Insight */
+.journey{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.journey svg{display:block;width:100%;min-width:700px;height:auto}
+.j-line{stroke:var(--line);stroke-width:2}
+.j-commit{stroke:var(--ink);stroke-width:2}
+.j-node{fill:var(--bg);stroke:var(--muted);stroke-width:2}
+.j-node.k{fill:var(--ink);stroke:var(--ink)}
+.j-text{fill:var(--ink);font-family:var(--body);font-size:15px;font-weight:500}
+.j-small{fill:var(--muted);font-family:var(--mono);font-size:12px;letter-spacing:.06em}
+.j-band{fill:var(--line)}
+.j-band.pri{fill:var(--accent)}
+.j-band-line{stroke:var(--muted);stroke-width:1.5}
+.j-band-line.pri{stroke:var(--accent);stroke-width:2}
+.j-q{fill:var(--ink);font-family:var(--display);font-size:17px;font-weight:600}
+.j-q.pri{fill:var(--accent-ink)}
+.j-qn{fill:var(--muted);font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.06em}
+.j-qn.pri{fill:var(--accent)}
+.moments{display:grid;grid-template-columns:1fr;border-top:1px solid var(--ink)}
+@media (min-width:760px){.moments{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.moment{padding:1.1rem 1.25rem 1.35rem 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:.5rem}
+.moment .m-k{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.moment .ask{font-family:var(--display);font-size:var(--step-1);font-weight:600;line-height:1.25;color:var(--ink)}
+.moment.pri .m-k,.moment.pri .ask{color:var(--accent-ink)}
+@media (min-width:760px){.moment+.moment{padding-left:1.25rem;border-left:1px solid var(--line)}}
+.moment b{font-family:var(--display);font-size:1.1rem;font-weight:600}
+.moment>span:last-child{font-size:.95rem;color:var(--muted)}
+.moment.pri b{color:var(--accent-ink)}
+
+/* 04 Priority */
+.versus{display:grid;grid-template-columns:1fr;gap:1.25rem}
+.vs-block{display:flex;flex-direction:column;gap:1rem}
+.vs-k{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:baseline}
+.vs-k h3{font-size:var(--step-2)}
+.tbl{overflow-x:auto;border-top:1px solid var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th,td{text-align:left;padding:.8rem 1rem .8rem 0;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.rice td.init{font-family:var(--display);font-size:1.08rem;font-weight:600;min-width:11rem}
+.rice td.init small{display:block;font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:400}
+.rice .score{font-family:var(--display);font-size:1.3rem;font-weight:650}
+.rice tr.top-score .score{color:var(--accent-ink)}
+.decision{display:grid;grid-template-columns:1fr;gap:1.5rem;padding:clamp(1.25rem,3vw,2.25rem);border:1px solid var(--accent);border-radius:16px}
+@media (min-width:900px){.decision{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}}
+.decision .verdict-k{color:var(--accent-ink)}
+.decision h3{font-size:var(--step-3);margin-top:.5rem}
+.decision h3 span{color:var(--accent)}
+.decision .why{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:1rem;counter-reset:w}
+.decision .why li{display:grid;grid-template-columns:1.75rem 1fr;gap:.5rem;counter-increment:w}
+.decision .why li::before{content:counter(w);font-family:var(--display);font-size:1.2rem;font-weight:400;color:var(--accent);line-height:1.3}
+.decision .why b{display:block;font-family:var(--display);font-size:1.08rem;font-weight:600}
+.decision .why span{color:var(--muted);font-size:.95rem}
+.decision .so{grid-column:1/-1;padding-top:1.25rem;border-top:1px solid var(--line);font-size:1rem}
+.decision .so b{color:var(--accent-ink);font-weight:600}
+.order{display:grid;grid-template-columns:1fr;gap:1rem}
+@media (min-width:860px){.order{grid-template-columns:1.3fr 1fr 1fr}}
+.order>div{display:flex;flex-direction:column;gap:.55rem;padding:1.25rem;border:1px solid var(--line);border-radius:12px}
+.order>div.first{border-color:var(--accent);background:var(--accent-soft)}
+.order .k{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.order .first .k{color:var(--accent-ink)}
+.order h4{font-size:var(--step-1);font-weight:650}
+.order p{font-size:.95rem}
+details.more{border-top:1px solid var(--line);padding-top:1rem}
+details.more>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:.5rem;font-family:var(--mono);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink)}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:"+";width:1rem}
+details.more[open]>summary::before{content:"–"}
+details.more .inner{margin-top:1.25rem;display:flex;flex-direction:column;gap:1.5rem}
+.scale{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;font-size:.9rem}
+.scale div{display:flex;flex-direction:column;gap:.2rem}
+.scale b{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
+.scale span{color:var(--muted)}
+.whyt td{font-size:.9rem;color:var(--muted);min-width:11rem}
+.whyt td:first-child{color:var(--ink);font-weight:500;min-width:9rem}
+
+/* 05 Solution */
+.solution{display:flex;flex-direction:column;gap:1.75rem;padding-top:2rem;border-top:1px solid var(--ink)}
+.solution.flag{background:var(--surface);border-top:0;border-radius:16px;padding:clamp(1.25rem,3vw,2.25rem)}
+.sol-head{display:flex;flex-direction:column;gap:.75rem}
+.solution h3{font-size:var(--step-3);max-width:24ch}
+.goal{font-size:1.05rem;max-width:56ch}
+.goal b{color:var(--accent-ink);font-weight:600}
+.shift{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .9rem;font-family:var(--display);font-size:var(--step-1);font-weight:600;line-height:1.2}
+.shift s{color:var(--muted);text-decoration-thickness:2px;text-decoration-color:var(--accent);font-weight:450}
+.shift .to{color:var(--accent);font-weight:400}
+.two{display:grid;grid-template-columns:1fr;gap:1.75rem}
+@media (min-width:880px){.two{grid-template-columns:minmax(0,1fr) minmax(0,.85fr);align-items:start}}
+.builds{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1rem}
+.builds li{display:flex;flex-direction:column;gap:.15rem;padding-left:1rem;border-left:2px solid var(--accent)}
+.builds b{font-family:var(--display);font-size:1.1rem;font-weight:600}
+.builds span{font-size:.95rem;color:var(--muted)}
+.ba{display:grid;grid-template-columns:1fr;gap:.75rem}
+.ba .lane{display:grid;grid-template-columns:4.75rem 1fr;gap:.75rem;align-items:start}
+.ba .lane-name{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:.5rem}
+.ba .lane.after .lane-name{color:var(--accent-ink)}
+.flow{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.flow .step{font-size:.86rem;padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px;background:var(--bg)}
+.flow .step.hot{border-color:var(--accent);color:var(--accent-ink)}
+.flow .step.good{border-color:var(--ok);color:var(--ok)}
+.flow .arrow{color:var(--muted);font-size:.85rem}
+.principles{display:grid;grid-template-columns:1fr;gap:1rem 1.5rem}
+@media (min-width:760px){.principles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.principles>div{display:flex;flex-direction:column;gap:.25rem;font-size:.93rem;min-width:0}
+.principles b{font-family:var(--display);font-size:1.02rem;font-weight:600}
+.principles span{color:var(--muted)}
+.pr-k{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+.wire{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:1.2rem;display:flex;flex-direction:column;gap:.7rem;max-width:380px;width:100%;box-shadow:0 1px 0 var(--line),0 14px 30px -22px rgba(0,0,0,.3)}
+.wire .wtitle{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:.95rem}
+.wire .line{display:flex;justify-content:space-between;align-items:center;font-size:.9rem;gap:1rem}
+.wire .line .ph{height:.6rem;border-radius:3px;background:var(--line);width:3.2rem;flex:none}
+.wire .line.total{border-top:1px dashed var(--line);padding-top:.7rem;font-weight:650;font-size:1rem}
+.wire .line.total .ph{background:var(--ink);width:4rem;height:.75rem}
+.wire .cta{margin-top:.2rem;background:var(--accent);color:var(--bg);border-radius:9px;padding:.65rem .8rem;font-weight:600;font-size:.92rem;display:flex;justify-content:space-between}
+.wire .cta .ph{height:.6rem;width:3.5rem;border-radius:3px;background:color-mix(in srgb,var(--bg) 55%,transparent);align-self:center}
+.wire details{border-top:1px solid var(--line);padding-top:.6rem}
+.wire summary{cursor:pointer;font-size:.88rem;color:var(--accent-ink);font-weight:500;list-style:none;display:flex;align-items:center;gap:.4rem}
+.wire summary::-webkit-details-marker{display:none}
+.wire summary::before{content:"+";font-family:var(--mono);width:1rem;display:inline-block}
+.wire details[open] summary::before{content:"–"}
+.wire dl{margin:.6rem 0 0;display:flex;flex-direction:column;gap:.5rem;font-size:.84rem}
+.wire dt{font-weight:600}
+.wire dd{margin:0;color:var(--muted)}
+.wire .cta2{border:1px solid var(--line);border-radius:9px;padding:.6rem .8rem;text-align:center;font-weight:600;font-size:.9rem;color:var(--accent-ink)}
+.keyline{font-family:var(--display);font-size:var(--step-2);font-weight:600;line-height:1.2;letter-spacing:-.015em;max-width:30ch;padding-left:1.1rem;border-left:3px solid var(--accent)}
+.keyline span{color:var(--accent-ink)}
+.goal .tag{margin-right:.4rem;vertical-align:.1em}
+.aside{display:flex;flex-direction:column;gap:.6rem;padding:1.1rem 1.25rem;border:1px dashed var(--line);border-radius:12px}
+.aside p{font-size:.95rem;color:var(--muted);max-width:72ch}
+.aside p b{color:var(--ink);font-weight:600}
+.wcap{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wire-col{display:flex;flex-direction:column;gap:.75rem;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:.45rem;font-size:.82rem;font-weight:500;padding:.3rem .65rem;border-radius:999px;width:fit-content;white-space:nowrap;flex:none}
+.chip::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:currentColor}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.alert{background:var(--warn-soft);border-radius:9px;padding:.75rem .85rem;font-size:.87rem;display:flex;flex-direction:column;gap:.25rem}
+.alert b{color:var(--warn)}
+.alt{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.55rem 0;border-top:1px solid var(--line);font-size:.88rem}
+.alt .ph{height:.55rem;border-radius:3px;background:var(--line);width:6rem;display:block;margin-top:.35rem}
+.pipeline{display:grid;grid-template-columns:1fr;gap:.75rem}
+@media (min-width:860px){.pipeline{grid-template-columns:1.2fr auto .9fr auto 1.1fr;align-items:stretch}}
+.pipe{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:1rem 1.15rem;display:flex;flex-direction:column;gap:.6rem;min-width:0}
+.pipe h4{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pipe ul{margin:0;padding-left:1.05rem;font-size:.9rem;display:flex;flex-direction:column;gap:.2rem}
+.pipe .tier{display:flex;flex-direction:column;gap:.25rem;font-size:.87rem}
+.pipe .tier+.tier{border-top:1px solid var(--line);padding-top:.6rem}
+.pipe-arrow{display:grid;place-items:center;color:var(--accent);font-size:1.25rem}
+@media (max-width:859px){.pipe-arrow{transform:rotate(90deg);height:1.25rem}}
+.ctx td:first-child{font-weight:500;min-width:10rem}
+.ctx td{min-width:9rem}
+.prompt{font-family:var(--display);font-weight:600;color:var(--accent-ink)}
+
+/* 06 Measurement */
+.ns{display:grid;grid-template-columns:1fr;gap:1.25rem 2rem;align-items:center;padding:clamp(1.25rem,3.5vw,2.25rem);background:var(--surface);border-radius:16px;border-top:3px solid var(--accent)}
+@media (min-width:860px){.ns{grid-template-columns:1.2fr 1fr}}
+.ns .label{color:var(--accent-ink)}
+.ns h3{font-size:var(--step-3);font-weight:650;letter-spacing:-.025em;margin-top:.5rem;max-width:16ch}
+.ns .def{display:flex;flex-direction:column;gap:.5rem;font-size:.98rem}
+@media (min-width:860px){.ns .def{border-left:1px solid var(--line);padding-left:1.5rem}}
+.tiers{display:grid;grid-template-columns:1fr;gap:1rem}
+@media (min-width:760px){.tiers{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tier-card{border:1px solid var(--line);border-radius:12px;padding:1.15rem 1.3rem;display:flex;flex-direction:column;gap:.75rem}
+.tier-card h4{font-size:1.15rem;font-weight:600;display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem 1rem;align-items:baseline}
+.tier-card h4 small{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:400}
+.tier-card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.55rem}
+.tier-card li{display:flex;flex-direction:column;gap:.05rem}
+.tier-card li b{font-weight:500;font-size:.98rem}
+.tier-card li span{color:var(--muted);font-size:.88rem}
+.trap{display:grid;grid-template-columns:1fr;gap:1.25rem 2rem;padding:1.5rem;border:1px dashed var(--accent);border-radius:12px}
+@media (min-width:860px){.trap{grid-template-columns:.8fr 1.2fr}}
+.trap h3{font-size:var(--step-2);margin-top:.4rem}
+.trap ul{margin:0;padding-left:1.1rem;font-size:.95rem;display:flex;flex-direction:column;gap:.25rem}
+.trap p{font-size:.98rem}
+.mini{display:grid;grid-template-columns:1fr;gap:1rem}
+@media (min-width:760px){.mini{grid-template-columns:1fr 1fr}}
+
+/* 07 Risks */
+.risks{display:grid;grid-template-columns:1fr;border-top:1px solid var(--ink)}
+@media (min-width:900px){.risks{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.risk{padding:1.25rem 1.25rem 1.5rem 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:.9rem;min-width:0}
+@media (min-width:900px){.risk+.risk{padding-left:1.25rem;border-left:1px solid var(--line)}}
+.risk h3{font-size:var(--step-1)}
+.risk ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:1rem}
+.risk li{display:flex;flex-direction:column;gap:.3rem;font-size:.95rem}
+.risk li span{color:var(--muted);font-size:.9rem;padding-left:.9rem;border-left:2px solid var(--ok)}
+
+/* 08 Recommendation */
+.final{background:var(--surface)}
+.verdict{font-family:var(--display);font-size:var(--step-4);font-weight:700;line-height:1.05;letter-spacing:-.03em;max-width:18ch}
+.verdict span{display:block}
+.verdict span:nth-child(1){color:var(--accent)}
+.verdict span:nth-child(n+2){color:var(--muted);font-weight:500}
+.recs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--ink)}
+.recs li{display:grid;grid-template-columns:2.5rem 1fr;gap:1rem;padding:1.1rem 0;border-bottom:1px solid var(--line);align-items:baseline}
+.recs .i{font-family:var(--display);font-size:1.5rem;font-weight:300;color:var(--accent)}
+.recs b{font-family:var(--display);font-size:var(--step-1);font-weight:600;display:block}
+.recs span{color:var(--muted);font-size:.95rem}
+.closing{font-family:var(--display);font-size:var(--step-3);font-weight:600;line-height:1.15;letter-spacing:-.02em;max-width:24ch;padding-top:.5rem}
+.closing span{color:var(--accent)}
+
+/* Appendix */
+.appx .cols{display:grid;grid-template-columns:1fr;gap:2rem}
+@media (min-width:860px){.appx .cols{grid-template-columns:1fr 1fr}}
+.appx h3{font-size:var(--step-1);margin-bottom:1rem}
+.appx ol,.appx ul{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.65rem;font-size:.95rem}
+.appx li b{font-weight:600}
+.appx li span{display:block;color:var(--muted);font-size:.88rem}
+footer{padding-block:2.5rem 3.5rem;font-size:var(--step--1);color:var(--muted)}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem}
+
+@media print{
+  .spine{display:none}
+  .chapter{break-inside:auto;page-break-before:always;border:0}
+  .ch-head{position:static}
+  .persona,.solution,.tier-card,.risk,.order>div,.ledger,.trap,.ns,.decision,.lead{break-inside:avoid}
+  .journey svg,.timeline ol{min-width:0}
+  details.more .inner{display:flex}
+}
+</style>
+
+</head>
+<body>
+<nav class="spine" aria-label="Story spine">
+  <div class="wrap">
+    <a class="brand" href="#top">Swiggy Teardown</a>
+    <ol>
+      <li><a class="s" href="#problem">PROBLEM</a></li>
+      <li><a class="s" href="#insight">INSIGHT</a></li>
+      <li><a class="s" href="#priority">PRIORITY</a></li>
+      <li><a class="s" href="#solution">SOLUTION</a></li>
+      <li><a class="s" href="#metrics">METRICS</a></li>
+    </ol>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="kicker">
+      <span class="name">Swiggy <span>—</span> Product Teardown</span>
+      <span class="label">PM case study</span>
+      <span class="tag">Independent analysis · No internal data</span>
+    </div>
+
+    <span class="label th">Thesis</span>
+    <h1>The opportunity isn't to make Swiggy do more. <span>It's to make every commitment feel more certain.</span></h1>
+    <p class="question"><b>The question I set out to answer:</b> how might Swiggy reduce friction across price, reliability and discovery without compromising the convenience of its core food-ordering experience?</p>
+
+    <dl class="meta">
+      <div><dt>Lens</dt><dd>Certainty at the moments a user commits</dd></div>
+      <div><dt>Surface</dt><dd>Consumer app: food ordering flow and ecosystem entry points</dd></div>
+      <div><dt>Method</dt><dd>Observable product behavior + product principles</dd></div>
+    </dl>
+
+    <section class="glance" aria-labelledby="glance-h">
+      <div class="glance-head">
+        <span class="label" id="glance-h">The argument in 60 seconds</span>
+      </div>
+      <ol>
+        <li><a href="#problem"><span class="g-k"><b>01</b>Problem</span><span class="g-t">Order accepted ≠ order fulfilled. A refund returns the money, not the time, convenience or certainty the user lost.</span></a></li>
+        <li><a href="#insight"><span class="g-k"><b>02</b>Insight</span><span class="g-t">Reliability, transparency and discovery are three forms of one uncertainty: commit now, find out later.</span></a></li>
+        <li><a href="#insight"><span class="g-k"><b>03</b>Opportunity</span><span class="g-t">Move certainty earlier, to the point where the user can still act on it.</span></a></li>
+        <li class="key"><a href="#priority"><span class="g-k"><b>04</b>Priority</span><span class="g-t">Reliability first. Transparency scores higher on RICE, but reliability protects the core delivery promise.</span></a></li>
+        <li><a href="#solution"><span class="g-k"><b>05</b>Solution</span><span class="g-t">Fulfillment confidence: extend today's delay messaging to other failure points, and pair it with a nearby alternative while the user can still act.</span></a></li>
+        <li><a href="#metrics"><span class="g-k"><b>06</b>Measurement</span><span class="g-t">North Star: orders fulfilled as promised. Refunds are read alongside repeat ordering, never alone.</span></a></li>
+      </ol>
+      <div class="legend" aria-label="How claims are labelled">
+        <span class="it"><span class="tag obs">Observed</span>visible in the app today</span>
+        <span class="it"><span class="tag hyp">Hypothesis</span>my inference, needs validation</span>
+        <span class="it"><span class="tag rec">Recommendation</span>what I would do</span>
+      </div>
+    </section>
+  </div>
+</header>
+
+<!-- 01 Context -->
+<section class="chapter" id="context">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">01</div><div class="ch-meta"><div class="label">Context</div><p class="ch-q">What is Swiggy, and who is it for?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">A food app that became a platform of everyday decisions.</h2>
+      <p class="lede">Swiggy started with restaurant delivery and now spans several services. Each asks for a different kind of commitment, from a routine dinner to a planned night out.</p>
+
+      <div class="surfaces">
+        <div class="surface"><span class="mode">Transactional · routine</span><h3>Food</h3><p>Restaurant delivery. The core habit and the focus here.</p></div>
+        <div class="surface"><span class="mode">Transactional · routine</span><h3>Instamart</h3><p>Quick commerce for groceries and essentials.</p></div>
+        <div class="surface"><span class="mode">Planned · occasional</span><h3>Dineout</h3><p>Restaurant discovery and table reservations.</p></div>
+        <div class="surface"><span class="mode">Exploratory · occasional</span><h3>Scenes</h3><p>Events and experiences, discovery-led.</p></div>
+      </div>
+
+      <div class="arch">
+        <article class="persona">
+          <h3>The Routine User</h3>
+          <p class="job">Orders often. The flow should feel automatic.</p>
+          <p class="needs"><b>Needs</b>Predictable pricing, reliable delivery, low-friction reordering</p>
+          <blockquote>“The total feels different from what I picked, and every so often an order just doesn't show up.”</blockquote>
+        </article>
+        <article class="persona">
+          <h3>The Time-Sensitive User</h3>
+          <p class="job">Needs food by a particular time, or can't cook.</p>
+          <p class="needs"><b>Needs</b>Certainty, reliable fulfillment, accurate estimates</p>
+          <blockquote>“I waited 40 minutes and then it got cancelled. Now it's late and I have nothing.”</blockquote>
+        </article>
+        <article class="persona">
+          <h3>The Discovery User</h3>
+          <p class="job">Sees a food app, but could be open to Dineout or Scenes.</p>
+          <p class="needs"><b>Needs</b>Relevant discovery that fits the moment</p>
+          <blockquote>“There's a lot on the home screen. I'm here for dinner, not to browse everything.”</blockquote>
+        </article>
+      </div>
+      <p class="note">Behavioral archetypes built for this teardown, defined by situation rather than demographics. One person can be all three in a week. They are not Swiggy's researched segments, the quotes are illustrative, and the mode labels above are my framing.</p>
+
+      <div class="scope">
+        <div><h4>In scope</h4><ul><li>The food ordering flow, cart to delivery</li><li>What happens after an order fails or arrives incomplete</li><li>How the app moves attention between services</li></ul></div>
+        <div class="out"><h4>Out of scope</h4><ul><li>Restaurant and delivery partner apps</li><li>Instamart fulfillment operations</li><li>Pricing strategy and fee levels themselves</li></ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 Problem -->
+<section class="chapter" id="problem">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">02</div><div class="ch-meta"><div class="label">Problem</div><p class="ch-q">What problem are we solving?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">A refund resolves the transaction. <span class="soft">It doesn't restore the need.</span></h2>
+      <p class="lede">A refund can return the money. It can't return the time, convenience or certainty the user lost. Of the three friction points I found, this one costs the user most, so it leads.</p>
+
+      <article class="lead" aria-labelledby="p-rel">
+        <div class="tags"><span class="label" id="p-rel">Reliability · after commitment</span><span class="tag pri">Highest trust cost</span></div>
+        <div class="neq" aria-label="Order accepted is not equal to order fulfilled"><span>Order accepted</span><span class="sym">≠</span><span>Order fulfilled</span></div>
+
+        <figure class="figure timeline" aria-label="Timeline of a failed order">
+          <ol>
+            <li class="commit"><b>Order placed</b><span>The user commits and drops other options.</span></li>
+            <li><b>Waiting</b><span>The user plans around the ETA.</span></li>
+            <li class="bad"><b>Failure surfaces</b><span>Cancellation, long delay, or a missing item.</span></li>
+            <li class="bad"><b>Refund issued</b><span>The transaction is closed.</span></li>
+            <li class="bad"><b>Need still unmet</b><span>It's later, and fewer kitchens are open.</span></li>
+          </ol>
+        </figure>
+
+        <div class="ledger">
+          <div class="restored"><h4>Restored by a refund</h4><ul><li><span class="mark">✓</span><b>The money spent</b></li></ul></div>
+          <div class="lost">
+            <h4>Not restored</h4>
+            <ul>
+              <li><span class="mark">×</span><div><b>Time</b> <span>spent waiting</span></div></li>
+              <li><span class="mark">×</span><div><b>The meal</b> <span>the reason for opening the app</span></div></li>
+              <li><span class="mark">×</span><div><b>Certainty</b> <span>about tonight</span></div></li>
+              <li><span class="mark">×</span><div><b>Convenience</b> <span>the user starts over</span></div></li>
+              <li><span class="mark">×</span><div><b>Trust</b> <span>in the next order</span></div></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="trio">
+          <div><h4><span class="tag obs">Observed</span></h4><p>Swiggy already surfaces some delay risk before ordering, such as <q>Order may take longer than usual</q> during weather or delivery-delay conditions.</p></div>
+          <div><h4>The gap <span class="tag hyp">Hypothesis</span></h4><p>That messaging covers lateness. Fulfillment confidence could extend to other failure points, especially an order that fails or is cancelled <em>after</em> the user has committed.</p></div>
+          <div><h4>Why it hurts</h4><ul><li>The user is hungry, or ordering around a planned meal time</li><li>They've already invested time choosing</li><li>They may be ordering for several people</li><li>Plans are hard to change at the last minute</li><li>A failure means restarting the search</li></ul></div>
+        </div>
+        <div class="hmw"><span class="label">Product question</span><p>How might Swiggy prevent predictable fulfillment failures instead of relying primarily on post-failure recovery?</p></div>
+        <p class="note">I have no data on how often orders fail or get cancelled after acceptance, or why. I treat post-commit cancellation as a meaningful failure scenario to validate, not a measured Swiggy-wide rate. I'm not blaming restaurants or delivery partners; many causes are systemic (demand spikes, stock running out, weather, distance).</p>
+      </article>
+
+      <div class="sub-h"><h3>Two other friction points</h3></div>
+
+      <!-- Price -->
+      <article class="second" aria-labelledby="p-price">
+        <div class="s-head">
+          <span class="label" id="p-price">Transparency · before payment</span>
+          <h4 class="t">The total is visible. What makes it up takes more effort to understand.</h4>
+        </div>
+        <div class="kv">
+          <div><h4><span class="tag obs">Observed</span></h4><p>Item prices and the final payable amount are both visible. Understanding exactly what contributes to the total (delivery, platform fee, taxes, other charges) can require additional interaction.</p></div>
+          <div><h4>Why it matters <span class="tag hyp">Hypothesis</span></h4><p>Users anchor on item prices while browsing, and price-sensitive users compare totals. When the gap between the two is hard to read, the amount feels less predictable, even when every charge is fair.</p></div>
+          <div class="hmw"><span class="label">Product question</span><p>How might Swiggy make the amount the user is about to commit to easier to understand and predict, without unnecessarily sacrificing fee revenue?</p></div>
+        </div>
+        <figure class="figure">
+          <div class="ladder" role="img" aria-label="Illustrative comparison: the price a user anchors on is the item subtotal, while the amount they pay adds delivery, platform fee, taxes and other charges.">
+            <div class="who">What I selected<small>the anchor</small><div class="bar" style="width:62%"><div class="seg food" style="flex:1">Item subtotal</div></div></div>
+            <div class="who">What I pay<small>the reality</small><div class="bar"><div class="seg food" style="flex:62">Item subtotal</div><div class="seg f1" style="flex:12"></div><div class="seg f2" style="flex:9"></div><div class="seg f3" style="flex:9"></div><div class="seg f4" style="flex:8"></div></div></div>
+            <div class="keys"><span><i class="key-sw f1"></i>Delivery</span><span><i class="key-sw f2"></i>Platform</span><span><i class="key-sw f3"></i>Taxes</span><span><i class="key-sw f4"></i>Other</span></div>
+            <p class="gapnote">The uncertainty lives in the gap between the two bars.</p>
+          </div>
+          <figcaption>Illustrative only. Proportions are not Swiggy data and vary by order, distance, time and membership.</figcaption>
+        </figure>
+      </article>
+
+      <!-- Discovery -->
+      <article class="second" aria-labelledby="p-disc">
+        <div class="s-head">
+          <div class="tags"><span class="label" id="p-disc">Discovery · across the ecosystem</span><span class="tag hyp">Hypothesis</span></div>
+          <h4 class="t">High-frequency services may crowd out lower-frequency ones.</h4>
+        </div>
+        <div class="kv">
+          <div><h4>My hypothesis</h4><p>As Swiggy expands beyond food, routine destinations may compete with occasional ones for the same screen space. Permanent placement rewards what people need often; a table booking or an event matters on a few specific evenings.</p></div>
+          <div><h4>Why it matters</h4><p>Promote everything and the core ordering flow gets cluttered. Promote nothing and newer services rely on users finding them alone.</p></div>
+          <div class="hmw"><span class="label">Product question</span><p>How should Swiggy distribute attention across its ecosystem without compromising the core ordering experience?</p></div>
+        </div>
+        <figure class="figure">
+          <div class="spec" role="img" aria-label="Food and Instamart are needed often and routine; Dineout and Scenes are needed occasionally and exploratory. Habit concentrates attention on the routine side.">
+            <div class="often"><span class="k">Needed often</span><ul><li>Food</li><li>Instamart</li></ul></div>
+            <div class="occ"><span class="k">Needed occasionally</span><ul><li>Dineout</li><li>Scenes</li></ul></div>
+            <div class="foot">← Where habit concentrates attention</div>
+          </div>
+          <figcaption>A conceptual hypothesis about typical need frequency, not measured usage data.</figcaption>
+        </figure>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 03 Insight -->
+<section class="chapter" id="insight">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">03</div><div class="ch-meta"><div class="label">Insight</div><p class="ch-q">What connects the three problems?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">The biggest opportunity isn't adding features. <span class="soft">It's reducing <em>uncertainty</em> before and after the user commits.</span></h2>
+      <p class="lede">These aren't three random feature ideas. They're three forms of the same uncertainty: the user commits now and finds out later.</p>
+
+      <div class="moments">
+        <div class="moment"><span class="m-k">Transparency</span><p class="ask">“What exactly am I committing to pay?”</p><span>The total is visible; what makes it up takes effort to read.</span></div>
+        <div class="moment pri"><span class="m-k">Reliability · Priority #1</span><p class="ask">“Will I actually get what I ordered?”</p><span>Confirmed only after the alternatives are gone.</span></div>
+        <div class="moment"><span class="m-k">Discovery</span><p class="ask">“Is this relevant to what I want to do right now?”</p><span>Left for the user to work out.</span></div>
+      </div>
+
+      <figure class="journey" aria-label="Where each uncertainty sits on the ordering journey">
+        <svg viewBox="0 0 1000 200" role="img">
+          <title>Ordering journey: browse, cart, checkout, pay, prepare, pick-up, deliver, what next. Transparency uncertainty sits before payment, reliability uncertainty after commitment (the priority), and discovery uncertainty across the ecosystem.</title>
+          <rect class="j-band" x="190" y="34" width="180" height="5" rx="2.5"/>
+          <rect class="j-band pri" x="420" y="34" width="360" height="5" rx="2.5"/>
+          <rect class="j-band" x="810" y="34" width="180" height="5" rx="2.5"/>
+          <text class="j-qn" x="190" y="22">TRANSPARENCY</text>
+          <text class="j-qn pri" x="420" y="22">RELIABILITY · PRIORITY</text>
+          <text class="j-qn" x="810" y="22">DISCOVERY</text>
+          <text class="j-q" x="190" y="64">Before payment</text>
+          <text class="j-q pri" x="420" y="64">After commitment</text>
+          <text class="j-q" x="810" y="64">Across the ecosystem</text>
+          <line class="j-line" x1="30" y1="125" x2="400" y2="125"/>
+          <line class="j-commit" x1="400" y1="125" x2="800" y2="125"/>
+          <line class="j-line" x1="800" y1="125" x2="970" y2="125"/>
+          <circle class="j-node" cx="40" cy="125" r="7"/><text class="j-text" x="40" y="160" text-anchor="middle">Browse</text>
+          <circle class="j-node" cx="160" cy="125" r="7"/><text class="j-text" x="160" y="160" text-anchor="middle">Cart</text>
+          <circle class="j-node" cx="290" cy="125" r="7"/><text class="j-text" x="290" y="160" text-anchor="middle">Checkout</text>
+          <circle class="j-node k" cx="400" cy="125" r="9"/><text class="j-text" x="400" y="160" text-anchor="middle">Pay</text>
+          <text class="j-small" x="400" y="181" text-anchor="middle">COMMITMENT</text>
+          <circle class="j-node" cx="520" cy="125" r="7"/><text class="j-text" x="520" y="160" text-anchor="middle">Prepare</text>
+          <circle class="j-node" cx="650" cy="125" r="7"/><text class="j-text" x="650" y="160" text-anchor="middle">Pick-up</text>
+          <circle class="j-node k" cx="790" cy="125" r="9"/><text class="j-text" x="790" y="160" text-anchor="middle">Deliver</text>
+          <text class="j-small" x="790" y="181" text-anchor="middle">PROMISE KEPT?</text>
+          <circle class="j-node" cx="910" cy="125" r="7"/><text class="j-text" x="910" y="160" text-anchor="middle">What next</text>
+          <line class="j-band-line" x1="290" y1="76" x2="290" y2="113" stroke-dasharray="3 4"/>
+          <line class="j-band-line pri" x1="600" y1="76" x2="600" y2="113" stroke-dasharray="3 4"/>
+          <line class="j-band-line" x1="910" y1="76" x2="910" y2="113" stroke-dasharray="3 4"/>
+        </svg>
+      </figure>
+
+      <p class="big">The fix in each case is to <em>move certainty earlier</em>, to the point where the user can still act on it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 04 Priority -->
+<section class="chapter" id="priority">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">04</div><div class="ch-meta"><div class="label">Priority</div><p class="ch-q">Why reliability first?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">RICE says one thing. <span class="soft">Strategy says another.</span></h2>
+      <p class="lede">I scored the three opportunities with RICE to force explicit reasoning, then made the call where the score falls short.</p>
+
+      <div class="vs-block">
+        <div class="vs-k"><h3>What RICE says: transparency first</h3><span class="tag hyp">Illustrative scores · my judgment</span></div>
+        <div class="tbl">
+          <table class="rice">
+            <thead><tr><th>Opportunity</th><th class="n">Reach</th><th class="n">Impact</th><th class="n">Confidence</th><th class="n">Effort</th><th class="n">RICE</th></tr></thead>
+            <tbody>
+              <tr><td class="init"><small>Reliability</small>Fulfillment confidence</td><td class="n">3</td><td class="n">3</td><td class="n">50%</td><td class="n">3</td><td class="n score">1.5</td></tr>
+              <tr class="top-score"><td class="init"><small>Transparency</small>Checkout transparency</td><td class="n">3</td><td class="n">1</td><td class="n">80%</td><td class="n">1</td><td class="n score">2.4</td></tr>
+              <tr><td class="init"><small>Discovery</small>Contextual discovery</td><td class="n">2</td><td class="n">1</td><td class="n">40%</td><td class="n">2</td><td class="n score">0.4</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">RICE = Reach × Impact × Confidence ÷ Effort. Every input is a directional judgment relative to the others, not a Swiggy metric.</p>
+      </div>
+
+      <div class="decision">
+        <div>
+          <span class="label verdict-k">What strategy says</span>
+          <h3>I would prioritize <span>reliability</span>.</h3>
+        </div>
+        <ol class="why">
+          <li><div><b>Severity doesn't average out.</b><span>RICE averages impact across everyone reached. Reliability failures are rare, severe events, and one bad night can end the habit.</span></div></li>
+          <li><div><b>It protects the core delivery promise.</b><span>Clear pricing and better discovery matter less if the order doesn't arrive as expected.</span></div></li>
+          <li><div><b>It builds a lasting capability.</b><span>Once failures can be predicted, the same signal can help with ETAs, restaurant ranking and ops planning.</span></div></li>
+        </ol>
+        <p class="so"><b>The score shapes the sequencing, not the bet.</b> Transparency ships first as a quick win; fulfillment confidence gets the main investment.</p>
+      </div>
+
+      <div class="order">
+        <div class="first"><span class="k">#1 · Main bet</span><h4>Reliability: fulfillment confidence</h4><p>Addresses the deepest trust problem and prevents the failure instead of compensating for it. Start with a narrow pilot to test calibration.</p></div>
+        <div><span class="k">#2 · Quick win</span><h4>Transparency: checkout</h4><p>High reach, low complexity. Ships in parallel without competing for the same team.</p></div>
+        <div><span class="k">#3 · Explore</span><h4>Discovery: contextual</h4><p>Potential ecosystem value, lower urgency. Validate one trigger first.</p></div>
+      </div>
+
+      <details class="more">
+        <summary>How I scored each input</summary>
+        <div class="inner">
+          <div class="scale">
+            <div><b>Reach · 1–3</b><span>Share of ordering sessions the change touches, relative to the others.</span></div>
+            <div><b>Impact · 0.5–3</b><span>Effect on a user who is reached. 3 = changes whether they trust the next order.</span></div>
+            <div><b>Confidence · %</b><span>How sure I am about reach and impact without data.</span></div>
+            <div><b>Effort · 1–3</b><span>Relative build and operational cost. Higher is harder.</span></div>
+          </div>
+          <div class="tbl">
+            <table class="whyt">
+              <thead><tr><th>Why each score</th><th>Reach</th><th>Impact</th><th>Confidence</th><th>Effort</th></tr></thead>
+              <tbody>
+                <tr><td>Fulfillment confidence</td><td>Evaluated on every order.</td><td>Prevents the failure with the highest trust cost.</td><td>Low-to-mid. Prediction quality and calibration are unproven.</td><td>High. Signal pipelines, a model, restaurant inputs and UX.</td></tr>
+                <tr><td>Checkout transparency</td><td>Every checkout sees it.</td><td>Makes the total easier to understand, but doesn't change the price.</td><td>High. Mostly presentation of existing line items.</td><td>Low. Largely front-end and content work.</td></tr>
+                <tr><td>Contextual discovery</td><td>Only users who complete a qualifying action.</td><td>Ecosystem value, but each prompt matters a little.</td><td>Low. The core hypothesis is untested.</td><td>Medium. Triggers, ranking and frequency caps.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- 05 Solution -->
+<section class="chapter" id="solution">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">05</div><div class="ch-meta"><div class="label">Solution</div><p class="ch-q">What would I change?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">One intervention per problem, <span class="soft">in priority order.</span></h2>
+      <p class="lede">Each one moves information to a point where the user can still act on it.</p>
+
+      <!-- S1 flagship -->
+      <article class="solution flag" aria-labelledby="s1">
+        <div class="sol-head">
+          <div class="tags"><span class="label">Solution 1 · Reliability</span><span class="tag pri">Priority #1</span><span class="tag rec">Recommendation</span></div>
+          <h3 id="s1">Tell users how likely an order is to succeed before they place it.</h3>
+          <div class="shift"><s>Compensating for failure</s><span class="to">→</span><span>Preventing avoidable failure</span></div>
+          <p class="goal"><span class="tag obs">Observed</span> Swiggy already warns when an order may take longer than usual. I'd build on that, not replace it.</p>
+        </div>
+
+        <p class="keyline">Don't just warn the user about risk. <span>Give them a viable alternative while they can still act.</span></p>
+
+        <div class="two">
+          <div class="stack">
+            <ul class="builds">
+              <li><b>Extend confidence beyond delay</b><span>Cover other failure points too, especially an order likely to fail or be cancelled after the user commits.</span></li>
+              <li><b>A clean, non-alarmist message</b><span>Only when signals are reliable enough: a short “Lower fulfillment confidence” note before checkout. Silent otherwise.</span></li>
+              <li><b>A viable alternative, right there</b><span>Continue with this order, or see similar items from nearby restaurants with higher confidence.</span></li>
+            </ul>
+            <div class="ba">
+              <div class="lane"><span class="lane-name">Today</span><div class="flow"><span class="step">Order accepted</span><span class="arrow">→</span><span class="step hot">Fails after commitment</span><span class="arrow">→</span><span class="step">Refund</span><span class="arrow">→</span><span class="step hot">Restart the search</span></div></div>
+              <div class="lane after"><span class="lane-name">Proposed</span><div class="flow"><span class="step">Lower confidence shown in cart</span><span class="arrow">→</span><span class="step">Similar item nearby</span><span class="arrow">→</span><span class="step good">Order fulfilled</span></div></div>
+            </div>
+            <div class="kv">
+              <div><h4>Why it's good for the platform <span class="tag hyp">Hypothesis</span></h4><ul><li>The user avoids restarting the whole search</li><li>Demand can shift to another nearby restaurant</li><li>Swiggy keeps the ordering opportunity instead of losing the user</li></ul></div>
+            </div>
+          </div>
+          <div class="wire-col">
+            <span class="wcap">Concept · cart with lower confidence</span>
+            <div class="wire" aria-label="Concept cart showing lower fulfillment confidence and nearby alternatives">
+              <div class="wtitle"><span>Your cart</span><span class="tag">Wireframe</span></div>
+              <span class="chip warn">Lower fulfillment confidence</span>
+              <div class="alert"><b>This order may not arrive as expected.</b><span>You can still place it, or pick a similar item from a nearby restaurant that's more likely to be fulfilled.</span></div>
+              <div class="alt"><div>Similar item nearby<span class="ph"></span></div><span class="chip ok">Higher confidence</span></div>
+              <div class="alt"><div>Similar item nearby<span class="ph"></span></div><span class="chip ok">Higher confidence</span></div>
+              <div class="cta"><span>Continue with this order</span><span class="ph"></span></div>
+              <div class="cta2">See similar items nearby</div>
+            </div>
+            <p class="note">Concept copy, not Swiggy's UI.</p>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="tags"><span class="pr-k">How the signal would work</span><span class="tag hyp">Proposed capability</span></div>
+          <div class="pipeline">
+            <div class="pipe">
+              <h4>Signals in</h4>
+              <ul>
+                <li>Restaurant operating status</li>
+                <li>Kitchen capacity and order load</li>
+                <li>Historical reliability at this time</li>
+                <li>Delivery feasibility for the distance</li>
+                <li>Delivery partner availability nearby</li>
+              </ul>
+            </div>
+            <div class="pipe-arrow" aria-hidden="true">→</div>
+            <div class="pipe">
+              <h4>Signal shown</h4>
+              <div class="tier"><span class="chip ok">High confidence</span><span class="muted">No new message.</span></div>
+              <div class="tier"><span class="chip warn">Lower fulfillment confidence</span><span class="muted">In the cart, before payment.</span></div>
+            </div>
+            <div class="pipe-arrow" aria-hidden="true">→</div>
+            <div class="pipe">
+              <h4>User can act</h4>
+              <ul>
+                <li>Continue with this order</li>
+                <li>See similar items nearby with higher confidence</li>
+                <li>Reschedule, if supported</li>
+              </ul>
+            </div>
+          </div>
+          <p class="note">I'm not claiming Swiggy has these signals or can predict cancellations today. The signal model and its thresholds would need validation, and the message should only appear when the signals are reliable enough. Recovery still exists for failures no model can predict.</p>
+        </div>
+
+        <div class="stack">
+          <span class="pr-k">Design principles</span>
+          <div class="principles">
+            <div><b>Quiet when fine</b><span>Most orders see nothing new. The signal earns attention by being rare.</span></div>
+            <div><b>Alternatives must be better</b><span>Similar cuisine and price, with genuinely higher confidence. Available isn't enough.</span></div>
+            <div><b>Check stock before accepting</b><span>The kitchen confirms item availability first, so missing items become edits, not surprises.</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- S2 -->
+      <article class="solution" aria-labelledby="s2">
+        <div class="sol-head">
+          <div class="tags"><span class="label">Solution 2 · Transparency</span><span class="tag">Priority #2</span><span class="tag rec">Recommendation</span></div>
+          <h3 id="s2">Make the amount the user is about to commit to easier to understand.</h3>
+          <p class="goal">Goal: <b>make the payable amount predictable and understandable before commitment.</b> The total is already visible; this is about what makes it up. Not “remove fees”.</p>
+        </div>
+        <div class="two">
+          <div class="stack">
+            <ul class="builds">
+              <li><b>Clearer breakdown of charges</b><span>What makes up the total, readable next to it, without extra digging.</span></li>
+              <li><b>Explain why a charge exists</b><span>“Why am I paying this?” gives one line per charge. Collapsed by default so checkout stays fast.</span></li>
+              <li><b>Show what can change it</b><span>Where a charge depends on distance, time or membership, say so plainly.</span></li>
+            </ul>
+            <div class="ba">
+              <div class="lane"><span class="lane-name">Today</span><div class="flow"><span class="step">Item prices</span><span class="arrow">→</span><span class="step">Total visible</span><span class="arrow">→</span><span class="step hot">Breakdown takes extra interaction</span></div></div>
+              <div class="lane after"><span class="lane-name">Proposed</span><div class="flow"><span class="step">Total + breakdown together</span><span class="arrow">→</span><span class="step good">Commit to a number I understand</span></div></div>
+            </div>
+          </div>
+          <div class="wire-col">
+            <span class="wcap">Concept · checkout summary</span>
+            <div class="wire" aria-label="Concept checkout summary">
+              <div class="wtitle"><span>Bill summary</span><span class="tag">Wireframe</span></div>
+              <div class="line"><span>Item subtotal</span><span class="ph"></span></div>
+              <div class="line"><span>Delivery fee</span><span class="ph"></span></div>
+              <div class="line"><span>Platform fee</span><span class="ph"></span></div>
+              <div class="line"><span>Taxes</span><span class="ph"></span></div>
+              <div class="line"><span>Other applicable charges</span><span class="ph"></span></div>
+              <div class="line total"><span>Total payable</span><span class="ph"></span></div>
+              <details>
+                <summary>Why am I paying this?</summary>
+                <dl>
+                  <dt>Delivery fee</dt><dd>Covers getting the order to you. It can change with distance and demand.</dd>
+                  <dt>Platform fee</dt><dd>A flat charge for using the service, shown per order.</dd>
+                  <dt>Taxes</dt><dd>Applied as required on food and services.</dd>
+                  <dt>Other applicable charges</dt><dd>For example packaging or small-cart charges, only when they apply.</dd>
+                </dl>
+              </details>
+              <div class="cta"><span>Pay</span><span class="ph"></span></div>
+            </div>
+            <p class="note">Placeholder copy for the concept, not Swiggy's actual fee definitions.</p>
+          </div>
+        </div>
+        <aside class="aside">
+          <div class="tags"><span class="pr-k">Separate idea · not part of this solution</span><span class="tag hyp">Hypothesis</span></div>
+          <p><b>A loyalty lever worth exploring separately.</b> Points from completed orders, redeemable for discounts, could support retention, especially if competing platforms lean on lower-fee or loyalty mechanics. It doesn't make the total easier to understand, so I'd evaluate it as its own bet.</p>
+        </aside>
+      </article>
+
+      <!-- S3 -->
+      <article class="solution" aria-labelledby="s3">
+        <div class="sol-head">
+          <div class="tags"><span class="label">Solution 3 · Discovery</span><span class="tag">Priority #3</span><span class="tag hyp">Hypothesis to test</span></div>
+          <h3 id="s3">Connect surfaces like Scenes through context, not permanent placement.</h3>
+          <p class="goal">Principle: <b>relevance first.</b> Contextual discovery should appear when the user's situation makes it useful. My hypothesis is that this does more than a permanent slot competing for navigation space. I have no data on how Scenes or Dineout perform today, so this starts as a test.</p>
+        </div>
+        <div class="tbl">
+          <table class="ctx">
+            <thead><tr><th>Moment</th><th>Contextual prompt</th><th>Leads to</th><th>Why it fits</th></tr></thead>
+            <tbody>
+              <tr><td>Dineout table booked</td><td class="prompt">“Looking for something to do after dinner?”</td><td>Scenes events near the restaurant</td><td>An evening out in that area is already planned.</td></tr>
+              <tr><td>Scenes ticket booked</td><td class="prompt">“Dinner near the venue?”</td><td>Dineout tables close by</td><td>Time and place are already known.</td></tr>
+              <tr><td>Browsing on a weekend evening</td><td class="prompt">“Going out tonight?”</td><td>Dineout and Scenes nearby</td><td>Browsing without ordering can signal an open plan.</td></tr>
+              <tr><td>Food order delivered</td><td class="prompt">“Plans this weekend?”</td><td>Upcoming Scenes and Dineout picks</td><td>The core job is done. A delivery usually means a night in, so it looks ahead.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="principles">
+          <div><b>Never on the checkout path</b><span>Prompts appear after the core job is done.</span></div>
+          <div><b>One at a time</b><span>Frequency-capped, dismissible, quieter for users who ignore them.</span></div>
+          <div><b>Relevance first</b><span>Only when place, time or intent connects to the previous action.</span></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 06 Measurement -->
+<section class="chapter" id="metrics">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">06</div><div class="ch-meta"><div class="label">Measurement</div><p class="ch-q">How would we know it worked?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">Measure the promise, <span class="soft">not the apology.</span></h2>
+      <p class="lede">I would measure whether orders arrive as promised, not how well failures are compensated.</p>
+
+      <div class="ns">
+        <div>
+          <span class="label">North Star · Fulfillment confidence</span>
+          <h3>Successful orders fulfilled as promised</h3>
+        </div>
+        <div class="def">
+          <p><b>Definition.</b> Orders delivered complete, within the promised window, without cancellation, as a share of orders placed.</p>
+          <p class="muted">It counts what the user counts. An accepted order that later fails doesn't count.</p>
+        </div>
+      </div>
+
+      <div class="tiers">
+        <div class="tier-card"><h4>Prevention <small>Did failures drop?</small></h4>
+          <ul>
+            <li><b>Cancellation rate</b><span>After the order is placed, split by who cancelled and why</span></li>
+            <li><b>Late-delivery rate</b><span>Delivered past the promised window</span></li>
+            <li><b>Missing or incomplete-item rate</b><span>Orders with at least one missing item</span></li>
+            <li><b>Order completion rate</b><span>Placed orders that reach the user</span></li>
+          </ul>
+        </div>
+        <div class="tier-card"><h4>Signal quality <small>Is the prediction honest?</small></h4>
+          <ul>
+            <li><b>Calibration</b><span>Of orders shown high confidence, the share fulfilled as promised</span></li>
+            <li><b>False-alarm rate</b><span>Lower-confidence messages on orders that were fulfilled as promised</span></li>
+            <li><b>Switch outcome</b><span>Did users who switched get a better result?</span></li>
+          </ul>
+        </div>
+        <div class="tier-card"><h4>Recovery <small>What did failure cost?</small></h4>
+          <ul>
+            <li><b>Refund rate</b><span>Read alongside prevention metrics, never alone</span></li>
+            <li><b>Support contacts per order</b><span>Especially “where is my order” and missing items</span></li>
+          </ul>
+        </div>
+        <div class="tier-card"><h4>Retention & guardrails <small>Did trust hold?</small></h4>
+          <ul>
+            <li><b>Repeat ordering after an incident</b><span>The best test of whether trust survived</span></li>
+            <li><b>Cart → order conversion</b><span>Guardrail: the signal shouldn't scare off good orders</span></li>
+            <li><b>Order volume for flagged restaurants</b><span>Guardrail: don't unfairly penalize a busy patch</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="trap">
+        <div><span class="label">The trap</span><h3>Don't optimize only for refunds.</h3></div>
+        <div class="stack">
+          <p>A lower refund rate could mean fewer failures. It could also mean:</p>
+          <ul>
+            <li>Refunds became harder to claim</li>
+            <li>Users gave up reporting problems</li>
+            <li>Failures shifted to forms refunded less, such as lateness</li>
+          </ul>
+          <p>So I'd pair every recovery metric with a fulfillment metric and a retention metric. If refunds fall but repeat ordering after incidents doesn't improve, the experience didn't improve.</p>
+        </div>
+      </div>
+
+      <div class="mini">
+        <div class="tier-card"><h4>Checkout transparency <small>Supporting</small></h4>
+          <ul>
+            <li><b>Checkout abandonment</b><span>Especially at the bill summary step</span></li>
+            <li><b>Price-related support contacts</b><span>Questions about charges</span></li>
+            <li><b>Cart → payment conversion</b><span>Watch for a short-term dip as the breakdown gets more prominent</span></li>
+            <li><b>Repeat ordering</b><span>Does predictability build habit?</span></li>
+          </ul>
+        </div>
+        <div class="tier-card"><h4>Contextual discovery <small>Supporting</small></h4>
+          <ul>
+            <li><b>Engagement with prompts</b><span>Tap-through and dismissal rates</span></li>
+            <li><b>Cross-surface discovery rate</b><span>Users trying a second service for the first time</span></li>
+            <li><b>Downstream conversion</b><span>Bookings or tickets that follow a prompt</span></li>
+            <li><b>Repeat use of discovered surfaces</b><span>Did discovery become a habit?</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="note">No baselines or targets, on purpose: setting them needs Swiggy's internal data. The first step would be measuring each metric's current baseline before any test.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 07 Risks -->
+<section class="chapter" id="risks">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">07</div><div class="ch-meta"><div class="label">Trade-offs</div><p class="ch-q">What could go wrong?</p></div></div>
+    <div class="ch-body">
+      <h2 class="ch-title">Risks, <span class="soft">and how I'd guard against them.</span></h2>
+      <div class="risks">
+        <div class="risk"><span class="label">Reliability</span><h3>Fulfillment confidence</h3>
+          <ul>
+            <li>A poorly calibrated signal creates unnecessary caution.<span>Pilot in a limited area, track false alarms, warn only above a tested threshold.</span></li>
+            <li>Alternatives must be better, not just available.<span>Recommend only higher-confidence options with similar cuisine and price.</span></li>
+            <li>Predictions degrade during unusual demand spikes.<span>Fall back to honest, wider ETAs rather than false precision.</span></li>
+          </ul>
+        </div>
+        <div class="risk"><span class="label">Transparency</span><h3>Checkout transparency</h3>
+          <ul>
+            <li>A clearer breakdown makes price changes more visible.<span>Accept it. Changes the user can understand cost less trust over time.</span></li>
+            <li>Transparency doesn't mean lower fees.<span>Set expectations internally: more predictability, not lower prices.</span></li>
+            <li>Too much detail adds checkout friction.<span>Total up front, detail one tap away.</span></li>
+          </ul>
+        </div>
+        <div class="risk"><span class="label">Discovery</span><h3>Contextual discovery</h3>
+          <ul>
+            <li>More prompts can become clutter.<span>Hard frequency caps and back-off for users who dismiss.</span></li>
+            <li>Cross-selling can feel like forced promotion.<span>Require a real link of place, time or intent first.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 Recommendation -->
+<section class="chapter final" id="recommend">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num">08</div><div class="ch-meta"><div class="label">Recommendation</div><p class="ch-q">So what's the call?</p></div></div>
+    <div class="ch-body">
+      <p class="verdict"><span>Fix reliability first.</span><span>Make price predictable.</span><span>Let discovery follow context.</span></p>
+      <ol class="recs">
+        <li><span class="i">1</span><div><b>Prevent avoidable fulfillment failures</b><span>Extend existing delay messaging to other failure points, and pair each warning with a nearby alternative while the user can still act.</span></div></li>
+        <li><span class="i">2</span><div><b>Make the payable amount easy to understand before commitment</b><span>Show what the total is made of, why each charge exists, and what can change it.</span></div></li>
+        <li><span class="i">3</span><div><b>Connect ecosystem experiences contextually</b><span>Link Food, Dineout and Scenes through moments of real intent, starting with one tested trigger.</span></div></li>
+      </ol>
+      <p class="closing">The opportunity isn't to make Swiggy do more. <span>It's to make every commitment feel more certain.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- Appendix -->
+<section class="chapter appx" id="validate">
+  <div class="wrap">
+    <div class="ch-head"><div class="ch-num" style="color:var(--muted)">A</div><div class="ch-meta"><div class="label">Appendix</div><p class="ch-q">What still needs validating?</p></div></div>
+    <div class="ch-body">
+      <div class="cols">
+        <div>
+          <h3>Hypotheses, and how I'd test them</h3>
+          <ol>
+            <li><b>Post-commit cancellations happen often enough to matter.</b><span>Order data by failure stage and cause.</span></li>
+            <li><b>A hard-to-read breakdown affects conversion or repeat use.</b><span>Checkout funnel data and user interviews about the total.</span></li>
+            <li><b>Some fulfillment failures are predictable from available signals.</b><span>Back-test a simple model on historical orders.</span></li>
+            <li><b>Users would act on a confidence signal.</b><span>A limited A/B test measuring switches and outcomes.</span></li>
+            <li><b>Better alternatives exist at the moment of risk.</b><span>Depends on restaurant density, cuisine and time of day.</span></li>
+            <li><b>Low-frequency surfaces lose attention to high-frequency ones.</b><span>Cross-surface usage and home screen engagement data.</span></li>
+            <li><b>Contextual triggers outperform static placement.</b><span>One trigger tested against a navigation-only control.</span></li>
+            <li><b>The archetypes reflect real behavior.</b><span>Behavioral clustering and qualitative research.</span></li>
+            <li><b>A points-based loyalty lever improves retention.</b><span>A separate test, outside the transparency work.</span></li>
+          </ol>
+        </div>
+        <div>
+          <h3>Claims I deliberately avoided</h3>
+          <ul>
+            <li>Any Swiggy user counts, order volumes, revenue or growth figures</li>
+            <li>Actual cancellation, late-delivery, refund or missing-item rates</li>
+            <li>Specific fee amounts, or that prices or fees are “hidden”</li>
+            <li>That Swiggy has no delay-risk messaging (it already shows some)</li>
+            <li>Conversion or abandonment rates at checkout</li>
+            <li>That Scenes or Dineout are hidden, underused or underperforming</li>
+            <li>Which operational data Swiggy collects or how its systems work</li>
+            <li>Blame on restaurants or delivery partners for failures</li>
+            <li>Swiggy's internal segmentation, roadmap or strategy</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Swiggy Product Teardown · Independent PM case study · November 2026</span>
+    <span>Not affiliated with or endorsed by Swiggy. Product names belong to their owners.</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.spine a.s'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var spineFor = {context:null,problem:'problem',insight:'insight',priority:'priority',solution:'solution',metrics:'metrics',risks:'metrics',recommend:'metrics',validate:'metrics'};
+  if(!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var key = spineFor[e.target.id];
+      links.forEach(function(a){ a.classList.remove('on'); });
+      if(key && map[key]) map[key].classList.add('on');
+    });
+  }, {rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(spineFor).forEach(function(id){ var el = document.getElementById(id); if(el) io.observe(el); });
+})();
+</script>
+</body>
+</html>
